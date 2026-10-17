@@ -26,6 +26,8 @@ Both actions appear only on RAW photos. Works in desktop and mobile browsers; na
 
 ## Install
 
+### Docker
+
 ```sh
 git clone https://github.com/wispdevon/MakeImmichJPEGsGreatAgain.git
 cd MakeImmichJPEGsGreatAgain
@@ -35,6 +37,21 @@ cp .env.example .env
 1. Edit `.env`: set your `PUBLIC_ORIGIN`, `IMMICH_URL` and `IMMICH_NETWORK`. For automatic button injection, set `WEB_UPSTREAM_URL` to your existing internal Immich web/gateway URL.
 2. Run `docker compose up -d --build`.
 3. Add the routes from [the Caddy example](deploy/Caddyfile.example) to your existing Immich domain, keeping your TLS settings. Reload the proxy, then refresh Immich.
+
+### Without Docker
+
+Install **Python 3.12 or 3.13** (with venv support) and **ExifTool** (`sudo apt install libimage-exiftool-perl` on Debian/Ubuntu). From the cloned repository:
+
+```sh
+python3.12 -m venv .venv
+.venv/bin/python -m pip install -r requirements.txt
+PUBLIC_ORIGIN=https://photos.example.com \
+IMMICH_URL=http://127.0.0.1:2283 \
+WEB_UPSTREAM_URL=http://127.0.0.1:2283 \
+.venv/bin/uvicorn server.app:app --host 127.0.0.1 --port 8100 --no-access-log
+```
+
+Replace the URLs with your browser origin and reachable Immich server/web addresses. Use the same [proxy routes](deploy/Caddyfile.example) as above, targeting `127.0.0.1:8100`. Check `http://127.0.0.1:8100/raw-jpeg/health`. This command runs in the foreground and does not load `.env` automatically.
 
 [Full installation guide, Immichinko integration and userscript alternative →](docs/INSTALL.md)
 

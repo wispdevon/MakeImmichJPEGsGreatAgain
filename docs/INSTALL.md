@@ -42,6 +42,12 @@ curl http://127.0.0.1:8100/raw-jpeg/health
 
 The response should be `{"status":"ok"}`. The port is bound to host loopback.
 
+## Run without Docker
+
+Install Python 3.12 or 3.13 with venv support and ExifTool. On Debian/Ubuntu, ExifTool is packaged as `libimage-exiftool-perl`. Clone the repository and use the commands in the [README's non-Docker section](../README.md#without-docker).
+
+Set `IMMICH_URL` to the server address reachable from the host, such as `http://127.0.0.1:2283`; Docker service names generally do not resolve outside Docker. Set `WEB_UPSTREAM_URL` to the existing web/gateway address reachable from the host. The same proxy routes and browser installation options below apply. The service listens on host loopback port 8100. To keep it running after logout or reboot, manage the documented command with your service manager, using the repository as its working directory and setting the environment variables there.
+
 ## Add the button automatically for all browsers
 
 Set `WEB_UPSTREAM_URL` in `.env` to your existing internal Immich web or gateway URL. For example:
