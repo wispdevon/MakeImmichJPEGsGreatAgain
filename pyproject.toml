@@ -1,5 +1,5 @@
 [project]
-name = "make-panasonic-great-again"
+name = "make-immich-jpegs-great-again"
 version = "0.3.0"
 description = "Embedded JPEG downloads from RAW photos beside Immich's download button"
 requires-python = ">=3.12,<3.14"

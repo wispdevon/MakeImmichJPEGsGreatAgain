@@ -1,5 +1,5 @@
 {
-  "name": "make-panasonic-great-again",
+  "name": "make-immich-jpegs-great-again",
   "version": "0.3.0",
   "private": true,
   "scripts": {"test": "node --test tests/userscript.test.cjs", "test:browser": "node tests/browser.cjs"},

@@ -1,4 +1,4 @@
-# Make Panasonic Great Again
+# Make Immich JPEGs Great Again
 
 Download the **full-size JPEG embedded in your RAW** directly from Immich. Uses ExifTool (`-b -JpgFromRaw2`): no conversion, resizing or re-encoding.
 
@@ -27,8 +27,8 @@ Both actions appear only on RAW photos. Works in desktop and mobile browsers; na
 ## Install
 
 ```sh
-git clone https://github.com/wispdevon/MakePanasonicGreatAgain.git
-cd MakePanasonicGreatAgain
+git clone https://github.com/wispdevon/MakeImmichJPEGsGreatAgain.git
+cd MakeImmichJPEGsGreatAgain
 cp .env.example .env
 ```
 

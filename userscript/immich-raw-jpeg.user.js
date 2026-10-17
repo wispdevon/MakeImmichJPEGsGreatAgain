@@ -1,6 +1,6 @@
 // ==UserScript==
-// @name         Make Panasonic Great Again — Immich RAW JPEG
-// @namespace    https://github.com/wispdevon/MakePanasonicGreatAgain
+// @name         Make Immich JPEGs Great Again — Immich RAW JPEG
+// @namespace    https://github.com/wispdevon/MakeImmichJPEGsGreatAgain
 // @version      0.3.0
 // @description  Download an embedded full-resolution JPEG beside Immich's download button, for RAW photos only.
 // @match        https://im.devonlabs.space/*

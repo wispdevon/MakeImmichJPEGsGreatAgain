@@ -133,7 +133,7 @@ wheels = [
 ]
 
 [[package]]
-name = "make-panasonic-great-again"
+name = "make-immich-jpegs-great-again"
 version = "0.3.0"
 source = { virtual = "." }
 dependencies = [

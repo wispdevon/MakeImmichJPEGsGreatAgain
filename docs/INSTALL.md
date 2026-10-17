@@ -19,8 +19,8 @@ Both JPEG download actions appear only for RAW images, never JPEG, PNG, HEIC, TI
 ## Docker setup
 
 ```sh
-git clone https://github.com/wispdevon/MakePanasonicGreatAgain.git
-cd MakePanasonicGreatAgain
+git clone https://github.com/wispdevon/MakeImmichJPEGsGreatAgain.git
+cd MakeImmichJPEGsGreatAgain
 cp .env.example .env
 ```
 
