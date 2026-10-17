@@ -5,15 +5,15 @@ services:
     environment:
       PUBLIC_ORIGIN: ${PUBLIC_ORIGIN:?Set PUBLIC_ORIGIN in .env}
       IMMICH_URL: ${IMMICH_URL:-http://immich-server:2283}
-      OMP_NUM_THREADS: "2"
+      WEB_UPSTREAM_URL: ${WEB_UPSTREAM_URL:-}
     ports:
-      - "127.0.0.1:8099:8099"
+      - "127.0.0.1:${RAW_JPEG_PORT:-8100}:8099"
     networks:
       - immich
     read_only: true
     tmpfs:
       - /tmp:size=536870912,mode=1777
-    mem_limit: 2g
+    mem_limit: 512m
     cpus: 2
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]

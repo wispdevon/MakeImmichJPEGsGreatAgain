@@ -1,9 +1,9 @@
 // ==UserScript==
 // @name         Make Panasonic Great Again — Immich RAW JPEG
 // @namespace    https://github.com/wispdevon/MakePanasonicGreatAgain
-// @version      0.1.0
-// @description  Download a full-resolution JPEG beside Immich's download button, for RAW photos only.
-// @match        https://photos.example.com/*
+// @version      0.2.0
+// @description  Download an embedded full-resolution JPEG beside Immich's download button, for RAW photos only.
+// @match        https://im.devonlabs.space/*
 // @grant        none
 // @run-at       document-idle
 // @license      MIT
@@ -11,6 +11,8 @@
 
 (() => {
   'use strict';
+  if (window.__immichRawJpegInstalled) return;
+  window.__immichRawJpegInstalled = true;
   // Change @match above to your Immich address before installing.
   const rawExtensions = new Set('3fr arw bay cap cr2 cr3 crw dcr dcs dng drf eip erf fff gpr iiq k25 kdc mdc mef mos mrw nef nrw obm orf pef ptx pxn r3d raf raw rw2 rwl rwz sr2 srf srw x3f'.split(' '));
   const uuid = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
@@ -62,7 +64,7 @@
     if (busy || id !== assetId()) return;
     busy = true;
     button.disabled = true;
-    button.textContent = 'Converting…';
+    button.textContent = 'Extracting…';
     button.setAttribute('aria-busy', 'true');
     try {
       const response = await fetch(`/raw-jpeg/assets/${id}`, {
@@ -70,10 +72,10 @@
       });
       if (!response.ok) {
         const error = await response.json().catch(() => ({}));
-        throw new Error(error.detail || `JPEG conversion failed (${response.status}). Check the converter setup.`);
+        throw new Error(error.detail || `JPEG extraction failed (${response.status}). Check the extractor setup.`);
       }
       if (!response.headers.get('content-type')?.startsWith('image/jpeg')) {
-        throw new Error('The JPEG converter is not configured at /raw-jpeg/.');
+        throw new Error('The JPEG extractor is not configured at /raw-jpeg/.');
       }
       const url = URL.createObjectURL(await response.blob());
       const anchor = document.createElement('a');
@@ -84,7 +86,7 @@
       anchor.remove();
       setTimeout(() => URL.revokeObjectURL(url), 60000);
     } catch (error) {
-      showError(error.message || 'JPEG conversion failed. Please try again.');
+      showError(error.message || 'JPEG extraction failed. Please try again.');
     } finally {
       busy = false;
       button.disabled = false;
@@ -131,9 +133,12 @@
     button.type = 'button';
     button.className = original.className;
     button.textContent = 'JPEG ↓';
-    button.title = 'Download full-resolution JPEG';
-    button.setAttribute('aria-label', 'Download full-resolution JPEG');
+    button.title = 'Download embedded full-resolution JPEG';
+    button.setAttribute('aria-label', 'Download embedded full-resolution JPEG');
     button.style.paddingInline = '10px';
+    button.style.width = 'auto';
+    button.style.minWidth = '64px';
+    button.style.whiteSpace = 'nowrap';
     button.disabled = busy;
     const asset = currentAsset;
     button.addEventListener('click', () => void download(asset, id, button));

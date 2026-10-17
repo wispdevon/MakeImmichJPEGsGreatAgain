@@ -1,24 +1,22 @@
 # Make Panasonic Great Again
 
-A **Download full-resolution JPEG** button beside Immich's existing download button, shown **only for RAW photos**. Built for Panasonic `.RW2` files; also recognizes common camera RAW extensions such as CR2/CR3, NEF, ARW, RAF, ORF and DNG. Actual decoding support depends on the bundled LibRaw version and camera.
+Download the **full-size JPEG already embedded in a RAW photo**, from a button beside Immich's Download button. Designed for Panasonic `.RW2` files.
 
-The button downloads the original through your existing Immich session, develops it with LibRaw, and saves a `.jpg`. It never downloads Immich's reduced preview or modifies your library.
+**No RAW development, conversion, resizing or JPEG re-encoding.** The response is the camera's original embedded JPEG bytes, including any metadata it contains.
 
-## What you get
+## How it works
 
-- A userscript for the Immich **web interface**, with an adjacent `JPEG ↓` button.
-- A Docker companion that renders the RAW at its full developed dimensions, with camera white balance, automatic orientation, sRGB color and JPEG quality 95 with no chroma subsampling.
-- RAW-only visibility: no button for JPEG, PNG, HEIC, TIFF, or video.
-- Progress and errors, plus a normal browser download named after the source file.
-- No admin API key, library mount, database access, or Immich fork.
+The companion reads the original RAW through the requesting user's Immich session and runs:
 
-This is an independent add-on, not an official Immich plugin. It requires a userscript manager and a small reverse-proxy change. The native mobile apps are outside its scope.
+```sh
+exiftool -b -JpgFromRaw2 original.RW2
+```
 
-## Install
+If that tag is absent, it tries `JpgFromRaw`. If neither contains a JPEG, the download reports an error. It never falls back to a thumbnail, `PreviewImage`, or RAW conversion. The embedded image's dimensions are determined by the camera; this add-on does not upscale it or promise that every RAW contains a full-resolution JPEG.
 
-### 1. Start the converter
+The `JPEG ↓` button appears only for RAW images, never JPEG, PNG, HEIC, TIFF or video. Other common RAW extensions are recognized, but extraction succeeds only when one of the supported tags exists. Original files and the Immich library are never modified.
 
-Clone this repository on the Docker host running Immich:
+## Docker setup
 
 ```sh
 git clone https://github.com/wispdevon/MakePanasonicGreatAgain.git
@@ -26,49 +24,78 @@ cd MakePanasonicGreatAgain
 cp .env.example .env
 ```
 
-Edit `.env`:
+Edit `.env` to match the browser origin and the existing Immich Docker network (`docker network ls`):
 
 ```dotenv
 PUBLIC_ORIGIN=https://photos.example.com
 IMMICH_NETWORK=immich_default
 IMMICH_URL=http://immich-server:2283
+RAW_JPEG_PORT=8100
 ```
 
-Set `PUBLIC_ORIGIN` to the exact origin you use in your browser, including the port if applicable. Use `docker network ls` to find your Immich Docker network and set `IMMICH_URL` to the server's address on that network. Do not include `/api`.
+`IMMICH_URL` is the fixed internal server URL, without `/api`. No API key or library mount is needed. Start the service:
 
 ```sh
 docker compose up -d --build
-curl http://127.0.0.1:8099/raw-jpeg/health
+curl http://127.0.0.1:8100/raw-jpeg/health
 ```
 
-### 2. Route `/raw-jpeg/` on your Immich origin
+The response should be `{"status":"ok"}`. The port is bound to host loopback.
 
-Add [deploy/nginx.conf](deploy/nginx.conf) to the same nginx `server` block that serves Immich, then validate and reload nginx. Keep your existing Immich routes. The path must reach the converter **without stripping `/raw-jpeg/`**. Preserve the `Cookie` and `Origin` request headers and allow a 300-second response timeout.
+## Add the button automatically for all browsers
 
-The example assumes nginx runs on the Docker host. For a containerized proxy, join it to the same Docker network and target `http://raw-jpeg:8099` instead of `127.0.0.1:8099`.
+Set `WEB_UPSTREAM_URL` in `.env` to your existing internal Immich web or gateway URL. For example:
 
-Check `https://YOUR-IMMICH-ADDRESS/raw-jpeg/health`; it should return `{"status":"ok"}`. The converter is bound to loopback by default; don't expose port 8099 publicly.
+```dotenv
+WEB_UPSTREAM_URL=http://immich-server:2283
+```
 
-### 3. Install the button
+If you already have an integration gateway, use that internal URL instead. This preserves its HTML and scripts.
 
-1. Install a userscript manager such as Tampermonkey or Violentmonkey.
-2. Create a new userscript and paste [userscript/immich-raw-jpeg.user.js](userscript/immich-raw-jpeg.user.js).
-3. Change its `@match` from `https://photos.example.com/*` to your actual Immich address. Save and enable it.
-4. Reload Immich, sign in, and open a RAW photo. Click **JPEG ↓** beside Download.
+Use [deploy/Caddyfile.example](deploy/Caddyfile.example) as the routing pattern for your existing Immich domain:
 
-Shared links are deliberately unsupported. Each browser needs the userscript installed. The script supports `/photos/:id` and nested `/…/photos/:id` viewer routes. It targets the current `asset-viewer-navbar-actions` toolbar and recognizes the download icon across translated labels, with an English-label fallback for older layouts. Immich UI changes may require updating the script.
+- `/raw-jpeg/*` goes to this companion at `127.0.0.1:8100`.
+- GET requests accepting HTML go to this companion, which reads the existing Immich page and inserts `<script defer src="/raw-jpeg/integration.js"></script>`.
+- Everything else, including APIs, media and WebSockets, stays on the existing Immich upstream.
 
-## Rendering and limits
+Preserve your existing TLS configuration. Validate the proposed proxy configuration before reloading. If the proxy runs in Docker, connect it to the Immich network and use `http://raw-jpeg:8099` instead of host loopback. Restart the companion after changing its environment.
 
-“Full resolution” means LibRaw's developed image dimensions after sensor margins and orientation, with `half_size=False` and no resizing. It does not mean the sensor's entire raw buffer, which may include unused border pixels. The JPEG is an independent LibRaw render; camera JPEG styles, Immich edits, ratings and EXIF/GPS metadata are not copied. An sRGB ICC profile is embedded.
+Reload Immich and open a RAW photo. No browser extension is required with this setup. This is an independent web add-on; native mobile apps are outside its scope.
 
-Defaults: one conversion at a time, 256 MiB input, 150 million developed pixels, 2 GiB container memory, and 512 MiB temporary storage. Concurrent requests receive a retryable error. Increase Docker limits and `MAX_RAW_BYTES` / `MAX_RAW_PIXELS` together for very large files. Files are temporary and removed after conversion or failure; there is no persistent cache. Very large or unusually compressed RAWs may hit the container memory limit.
+## Existing Immichinko gateway
 
-The converter forwards the requesting browser's cookies only to the fixed `IMMICH_URL`. Immich checks both metadata and original-download access using that user's session. There is no privileged fallback. Requests must carry the configured same-origin `Origin` header. Keep the converter on a trusted network and run it behind the same HTTPS origin as Immich.
+If the public reverse proxy already points directly at Immichinko's gateway, you can keep that route unchanged. Put the companion on the same Docker network, then run:
+
+```sh
+python3 deploy/install-immichinko.py /path/to/immichinko
+```
+
+The installer adds optional routing and script injection, with backups and checks against the expected gateway layout. Set `RAW_JPEG_UPSTREAM_URL=http://raw-jpeg-raw-jpeg-1:8099` in Immichinko's `.env.integration` (adjust the container DNS name if different), then rebuild only its gateway:
+
+```sh
+cd /path/to/immichinko
+docker compose --env-file .env.integration -f compose.integrated.yaml up -d --build --no-deps gateway
+```
+
+The existing sidebar, API routes, media and WebSocket handling stay in place. This setup doesn't require the optional HTML proxy or a change to the public reverse proxy. To disable the button, remove `RAW_JPEG_UPSTREAM_URL` and recreate the gateway.
+
+## Alternative: userscript installation
+
+If you prefer not to proxy HTML, route only `/raw-jpeg/` to the companion. [deploy/nginx.conf](deploy/nginx.conf) shows the nginx route. Preserve the path, Cookie and Origin headers, and a 300-second response timeout.
+
+Install Tampermonkey or Violentmonkey, create a userscript from [userscript/immich-raw-jpeg.user.js](userscript/immich-raw-jpeg.user.js), and change `@match` to your Immich origin. Save and reload. Each browser needs the script when using this alternative. Don't install it when automatic injection is enabled.
+
+## Permissions and limits
+
+The companion forwards only the requesting user's Cookie, Authorization or API-key credentials to the fixed `IMMICH_URL`. Immich checks metadata and original-download permissions; there is no stored admin key or privileged fallback. Browser requests use the existing session, and extraction requires the configured same-origin `Origin` header. Shared-link viewers are deliberately unsupported.
+
+The companion keeps temporary RAW files only for the duration of extraction and removes them on success or failure. Defaults are one extraction at a time, a 256 MiB input/embedded-JPEG limit, 150 million embedded pixels, a 45-second ExifTool timeout, 512 MiB container memory and 512 MiB temporary storage. Configure `MAX_RAW_BYTES` and `MAX_RAW_PIXELS` alongside container limits for unusually large images. The JPEG header is inspected for validity and dimensions without decoding or re-encoding its pixels.
+
+The script targets Immich's `asset-viewer-navbar-actions` toolbar and download icon, with an English-label fallback. It handles `/photos/:id` and nested `/…/photos/:id` routes. Future Immich layout changes may require an update.
 
 ## Development and verification
 
-Requires Python 3.12, [uv](https://docs.astral.sh/uv/), and Node.js 20+.
+Requires Python 3.12, uv, Node.js 20+, and ExifTool (`libimage-exiftool-perl` on Debian/Ubuntu).
 
 ```sh
 uv sync --locked
@@ -79,18 +106,20 @@ npx playwright install chromium
 npm run test:browser
 ```
 
-Backend integration tests cover session/origin checks, permission errors, RAW eligibility and download responses. Browser tests use an Immich toolbar fixture to verify placement, downloading, navigation and errors; they do not claim compatibility with every live Immich release. A real Nikon NEF from [rawpy's test corpus](https://github.com/letmaik/rawpy/tree/main/test) was also manually converted: 4284 × 2844 developed pixels produced a 4284 × 2844 JPEG with an embedded ICC profile. No live Immich instance was available during development.
+Backend tests cover origin/session checks, original-download permissions, input limits, byte-preserving extraction and automatic page injection. Browser tests exercise a toolbar fixture, downloading, route changes and extraction errors. GitHub CI also builds the Docker image.
 
-API and toolbar references: [Immich API](https://docs.immich.app/api/), [original-download controller](https://github.com/immich-app/immich/blob/main/server/src/controllers/asset-media.controller.ts), [viewer toolbar](https://github.com/immich-app/immich/blob/main/web/src/lib/components/asset-viewer/AssetViewerNavBar.svelte).
+An actual Panasonic RW2 from the deployment was checked: `JpgFromRaw2` yielded a **6000 × 4000 JPEG**, and the companion's extracted output matched ExifTool byte for byte. No private photos or credentials are included in this repository.
+
+References: [ExifTool Panasonic RAW tags](https://exiftool.org/TagNames/PanasonicRaw.html), [Immich API](https://docs.immich.app/api/), [Immich viewer toolbar](https://github.com/immich-app/immich/blob/main/web/src/lib/components/asset-viewer/AssetViewerNavBar.svelte).
 
 ## Troubleshooting
 
-- **No button:** check the userscript's `@match`, RAW extension, and whether you're in the single-photo viewer with an existing Download button.
-- **Converter not configured / HTML response:** fix the `/raw-jpeg/` proxy route.
-- **403:** make `PUBLIC_ORIGIN` match the browser origin exactly and preserve the `Origin` header at the proxy.
-- **401 or denied access:** sign in again and check you can download the original in Immich.
-- **422:** the file may be corrupt or its camera unsupported by LibRaw.
-- **429:** wait for the current conversion and retry.
-- **502:** check `IMMICH_URL`, Docker networking and converter logs.
+- **No button:** hard-refresh Immich, check that `/raw-jpeg/integration.js` loads and that a RAW is open in the single-photo viewer beside an existing Download button.
+- **HTML instead of JPEG:** fix the `/raw-jpeg/` proxy route.
+- **403:** match `PUBLIC_ORIGIN` to your exact browser origin and preserve the Origin header.
+- **401/denied access:** sign in again and confirm Immich permits downloading the original.
+- **422:** no supported embedded JPEG exists, or ExifTool could not read it. No conversion is attempted.
+- **429:** wait for the current extraction and retry.
+- **502:** check Docker networking, `IMMICH_URL`, `WEB_UPSTREAM_URL` and service logs.
 
-MIT licensed. LibRaw/rawpy and other dependencies retain their own licenses.
+MIT licensed. ExifTool and other dependencies retain their own licenses.

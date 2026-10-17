@@ -1,0 +1,17 @@
+# Set WEB_UPSTREAM_URL to the existing Immich web/gateway URL in .env
+# to inject the button for all browsers, without a userscript manager.
+im.example.com {
+    handle /raw-jpeg/* {
+        reverse_proxy 127.0.0.1:8100
+    }
+    @html {
+        method GET
+        header Accept *text/html*
+    }
+    handle @html {
+        reverse_proxy 127.0.0.1:8100
+    }
+    handle {
+        reverse_proxy 127.0.0.1:2283
+    }
+}

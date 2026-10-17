@@ -6,7 +6,7 @@ import pytest
 from fastapi.testclient import TestClient
 from PIL import Image
 
-from server.app import app, is_raw, jpeg_filename, render_jpeg
+from server.app import app, is_raw, jpeg_filename, extract_jpeg
 
 
 def test_raw_only():
@@ -26,7 +26,7 @@ def test_invalid_raw(tmp_path):
     path = tmp_path / 'fake.rw2'
     path.write_bytes(b'not a raw photo')
     with pytest.raises(ValueError, match='RAW'):
-        render_jpeg(path)
+        extract_jpeg(path)
 
 
 @pytest.fixture
@@ -53,12 +53,12 @@ def test_download_authorization_and_jpeg(client, monkeypatch):
             return httpx.Response(200, content=b'raw-original')
         return httpx.Response(200, json={'type': 'IMAGE', 'originalFileName': 'camera.RW2'})
     monkeypatch.setattr(module, 'transport', httpx.MockTransport(upstream))
-    def render(path):
+    def extract(path):
         assert path.read_bytes() == b'raw-original'
         output = io.BytesIO()
         Image.new('RGB', (120, 80)).save(output, 'JPEG')
         return output.getvalue()
-    monkeypatch.setattr(module, 'render_jpeg', render)
+    monkeypatch.setattr(module, 'extract_jpeg', extract)
     response = client.post(f'/raw-jpeg/assets/{asset_id}', headers={
         'origin': 'https://photos.example.com', 'cookie': 'immich_access_token=user-session',
     })
@@ -126,3 +126,64 @@ def test_no_redirects_to_arbitrary_servers(client, monkeypatch):
         'origin': 'https://photos.example.com', 'cookie': 'immich_access_token=session',
     })
     assert response.status_code == 502
+
+
+def test_embedded_bytes_returned_without_reencoding(tmp_path, monkeypatch):
+    import server.app as module
+    import subprocess
+    output = io.BytesIO()
+    Image.new('RGB', (160, 100), 'blue').save(output, 'JPEG', comment=b'preserve camera bytes')
+    embedded = output.getvalue()
+    calls = []
+    def exiftool(command, **kwargs):
+        calls.append(command)
+        return subprocess.CompletedProcess(command, 0, stdout=embedded, stderr=b'')
+    monkeypatch.setattr(module.subprocess, 'run', exiftool)
+    path = tmp_path / 'camera.RW2'
+    path.write_bytes(b'raw')
+    assert module.extract_jpeg(path) == embedded
+    assert calls[0][1:3] == ['-b', '-JpgFromRaw2']
+
+
+def test_no_embedded_jpeg_never_converts(tmp_path, monkeypatch):
+    import server.app as module
+    import subprocess
+    monkeypatch.setattr(module.subprocess, 'run', lambda command, **kwargs: subprocess.CompletedProcess(
+        command, 0, stdout=b'', stderr=b''))
+    path = tmp_path / 'camera.RW2'
+    path.write_bytes(b'raw')
+    with pytest.raises(ValueError, match='embedded JPEG'):
+        module.extract_jpeg(path)
+
+
+def test_html_integration_preserves_existing_addons(client, monkeypatch):
+    import server.app as module
+    monkeypatch.setenv('WEB_UPSTREAM_URL', 'http://existing-immich-gateway:8080')
+    html = '<html><head><script src="/immichinko/integration/sidebar.js"></script></head><body>Immich</body></html>'
+    monkeypatch.setattr(module, 'transport', httpx.MockTransport(lambda r: httpx.Response(
+        200, text=html, headers={'content-type': 'text/html', 'etag': 'old'})))
+    response = client.get('/photos', headers={'accept': 'text/html'})
+    assert response.status_code == 200
+    assert '/immichinko/integration/sidebar.js' in response.text
+    assert '<script defer src="/raw-jpeg/integration.js"></script>' in response.text
+    assert 'etag' not in response.headers
+
+
+def test_api_key_is_forwarded_without_privileged_fallback(client, monkeypatch):
+    import server.app as module
+    seen = []
+    def upstream(request):
+        seen.append(request)
+        return httpx.Response(403)
+    monkeypatch.setattr(module, 'transport', httpx.MockTransport(upstream))
+    response = client.post(f'/raw-jpeg/assets/{uuid4()}', headers={
+        'origin': 'https://photos.example.com', 'x-api-key': 'requesting-user-key',
+    })
+    assert response.status_code == 403
+    assert seen[0].headers['x-api-key'] == 'requesting-user-key'
+    assert 'cookie' not in seen[0].headers
+
+
+def test_unknown_integration_path_does_not_loop_through_gateway(client, monkeypatch):
+    monkeypatch.setenv('WEB_UPSTREAM_URL', 'http://existing-gateway:8080')
+    assert client.get('/raw-jpeg/missing', headers={'accept': 'text/html'}).status_code == 404

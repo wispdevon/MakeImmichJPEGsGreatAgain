@@ -30,7 +30,7 @@ const server = http.createServer((req, res) => {
     page.on('pageerror', error => errors.push(error.message));
     const base = `http://127.0.0.1:${server.address().port}`;
     await page.goto(`${base}/photos/${raw}`);
-    const button = page.getByRole('button', {name:'Download full-resolution JPEG',exact:true});
+    const button = page.getByRole('button', {name:'Download embedded full-resolution JPEG',exact:true});
     await button.waitFor();
     assert.equal(await button.evaluate(el => el.previousElementSibling.getAttribute('aria-label')), 'Download');
     const downloadPromise = page.waitForEvent('download');
@@ -40,14 +40,14 @@ const server = http.createServer((req, res) => {
     await button.waitFor({state:'detached'});
     await page.evaluate(id => history.pushState({}, '', `/albums/test/photos/${id}`), raw);
     await button.waitFor();
-    await page.route('**/raw-jpeg/assets/*', route => route.fulfill({status:422,contentType:'application/json',body:JSON.stringify({detail:'Unsupported or damaged RAW file'})}));
+    await page.route('**/raw-jpeg/assets/*', route => route.fulfill({status:422,contentType:'application/json',body:JSON.stringify({detail:'No supported embedded JPEG found'})}));
     await button.click();
-    await page.getByRole('alert').filter({hasText:'Unsupported or damaged RAW file'}).waitFor();
+    await page.getByRole('alert').filter({hasText:'No supported embedded JPEG found'}).waitFor();
     assert.equal(await button.isEnabled(), true);
     await page.evaluate(() => history.pushState({}, '', '/photos'));
     await button.waitFor({state:'detached'});
     assert.deepEqual(errors, []);
-    console.log('Browser checks passed: adjacency, download filename, RAW/JPEG navigation, album routes, conversion errors, no console errors.');
+    console.log('Browser checks passed: adjacency, download filename, RAW/JPEG navigation, album routes, extraction errors, no console errors.');
   } finally {
     await browser.close();
     server.close();
