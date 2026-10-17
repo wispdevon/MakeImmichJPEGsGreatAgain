@@ -34,7 +34,8 @@ def jpeg_filename(name):
 
 def extract_jpeg(path):
     """Return the camera's embedded JPEG verbatim; never develop or re-encode."""
-    for tag in ('JpgFromRaw2', 'JpgFromRaw'):
+    tags = ('JpgFromRaw2', 'JpgFromRaw') if path.suffix.lower() == '.rw2' else ('JpgFromRaw',)
+    for tag in tags:
         try:
             result = subprocess.run(
                 ['exiftool', '-b', f'-{tag}', str(path)],
@@ -94,7 +95,8 @@ async def download_jpeg(asset_id: UUID, request: Request):
                 if not is_raw(asset):
                     raise HTTPException(415, 'JPEG download is available only for RAW photos')
                 with tempfile.TemporaryDirectory(prefix='raw-jpeg-') as directory:
-                    path = Path(directory) / 'original.raw'
+                    extension = Path(asset['originalFileName']).suffix.lower()
+                    path = Path(directory) / f'original{extension}'
                     async with client.stream('GET', f'{base}/api/assets/{asset_id}/original',
                                              params={'edited': 'false'}) as original:
                         check_upstream(original)

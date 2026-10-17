@@ -1,6 +1,6 @@
 # Make Immich JPEGs Great Again
 
-Download the **full-size JPEG embedded in your RAW** directly from Immich. Uses ExifTool (`-b -JpgFromRaw2`): no conversion, resizing or re-encoding.
+Download the **full-size JPEG embedded in your RAW** directly from Immich. Uses ExifTool (`-JpgFromRaw2` for RW2, `-JpgFromRaw` for other RAWs): no conversion, resizing or re-encoding.
 
 For the 24 MP Panasonic RW2 files shown here:
 

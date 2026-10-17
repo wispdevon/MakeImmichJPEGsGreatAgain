@@ -12,7 +12,7 @@ The companion reads the original RAW through the requesting user's Immich sessio
 exiftool -b -JpgFromRaw2 original.RW2
 ```
 
-If that tag is absent, it tries `JpgFromRaw`. If neither contains a JPEG, the download reports an error. It never falls back to a thumbnail, `PreviewImage`, or RAW conversion. The embedded image's dimensions are determined by the camera; this add-on does not upscale it or promise that every RAW contains a full-resolution JPEG.
+RW2 files use `JpgFromRaw2`, with `JpgFromRaw` as a fallback. Other RAW formats use `exiftool -b -JpgFromRaw` directly. If the supported tag contains no JPEG, the download reports an error. It never falls back to a thumbnail, `PreviewImage`, or RAW conversion. The embedded image's dimensions are determined by the camera; this add-on does not upscale it or promise that every RAW contains a full-resolution JPEG.
 
 Both JPEG download actions appear only for RAW images, never JPEG, PNG, HEIC, TIFF or video. Other common RAW extensions are recognized, but extraction succeeds only when one of the supported tags exists. Original files and the Immich library are never modified.
 

@@ -55,6 +55,7 @@ def test_download_authorization_and_jpeg(client, monkeypatch):
     monkeypatch.setattr(module, 'transport', httpx.MockTransport(upstream))
     def extract(path):
         assert path.read_bytes() == b'raw-original'
+        assert path.suffix == '.rw2'
         output = io.BytesIO()
         Image.new('RGB', (120, 80)).save(output, 'JPEG')
         return output.getvalue()
@@ -187,3 +188,21 @@ def test_api_key_is_forwarded_without_privileged_fallback(client, monkeypatch):
 def test_unknown_integration_path_does_not_loop_through_gateway(client, monkeypatch):
     monkeypatch.setenv('WEB_UPSTREAM_URL', 'http://existing-gateway:8080')
     assert client.get('/raw-jpeg/missing', headers={'accept': 'text/html'}).status_code == 404
+
+
+@pytest.mark.parametrize('extension', ['NEF', 'CR3', 'ARW', 'RAF', 'DNG', 'raw'])
+def test_other_raw_formats_use_jpgfromraw(tmp_path, monkeypatch, extension):
+    import server.app as module
+    import subprocess
+    output = io.BytesIO()
+    Image.new('RGB', (160, 100)).save(output, 'JPEG')
+    embedded = output.getvalue()
+    selected = []
+    def exiftool(command, **kwargs):
+        selected.append(command[2])
+        return subprocess.CompletedProcess(command, 0, stdout=embedded, stderr=b'')
+    monkeypatch.setattr(module.subprocess, 'run', exiftool)
+    path = tmp_path / f'camera.{extension}'
+    path.write_bytes(b'raw')
+    assert module.extract_jpeg(path) == embedded
+    assert selected == ['-JpgFromRaw']
