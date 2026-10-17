@@ -44,3 +44,41 @@ test('closing viewer removes button', async () => {
   await new Promise(resolve => setTimeout(resolve, 0));
   dom.window.close();
 });
+
+test('toolbar uses an accessible SVG icon instead of a text button', async () => {
+  const dom = await setup('photo.RW2');
+  try {
+    const button = dom.window.document.querySelector('#immich-raw-jpeg');
+    assert.ok(button.querySelector('svg[aria-hidden="true"] path'));
+    assert.equal(button.textContent.trim(), '');
+    assert.equal(button.getAttribute('aria-label'), 'Download embedded full-resolution JPEG');
+  } finally {
+    dom.window.dispatchEvent(new dom.window.Event('pagehide'));
+    await new Promise(resolve => setTimeout(resolve, 0));
+    dom.window.close();
+  }
+});
+
+test('adds RAW action inside the viewer More menu and removes it on JPEG navigation', async () => {
+  const dom = await setup('photo.RW2');
+  try {
+    const toolbar = dom.window.document.querySelector('[data-testid="asset-viewer-navbar-actions"]');
+    toolbar.insertAdjacentHTML('beforeend', '<button aria-label="More" aria-haspopup="true" aria-controls="viewer-menu" aria-expanded="true">⋮</button>');
+    dom.window.document.body.insertAdjacentHTML('beforeend', '<ul id="viewer-menu" role="menu"><li id="native-download" role="menuitem">Download</li></ul>');
+    await new Promise(resolve => setTimeout(resolve, 30));
+    const item = dom.window.document.querySelector('#immich-raw-jpeg-menu');
+    assert.ok(item);
+    assert.equal(item.getAttribute('role'), 'menuitem');
+    assert.equal(item.textContent.trim(), 'Download JPEG');
+    assert.equal(item.previousElementSibling.id, 'native-download');
+    dom.window.fetch = async () => ({ok: true, json: async () => ({type:'IMAGE',originalFileName:'normal.jpg'})});
+    dom.window.history.pushState({}, '', '/photos/22222222-2222-4222-8222-222222222222');
+    dom.window.dispatchEvent(new dom.window.PopStateEvent('popstate'));
+    await new Promise(resolve => setTimeout(resolve, 30));
+    assert.equal(dom.window.document.querySelector('#immich-raw-jpeg-menu'), null);
+  } finally {
+    dom.window.dispatchEvent(new dom.window.Event('pagehide'));
+    await new Promise(resolve => setTimeout(resolve, 0));
+    dom.window.close();
+  }
+});

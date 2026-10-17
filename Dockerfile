@@ -6,6 +6,8 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY server ./server
 COPY userscript ./userscript
+COPY THIRD_PARTY_NOTICES.md ./
+COPY licenses ./licenses
 USER 10001:10001
 EXPOSE 8099
 CMD ["uvicorn", "server.app:app", "--host", "0.0.0.0", "--port", "8099", "--no-access-log"]

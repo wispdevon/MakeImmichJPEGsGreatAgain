@@ -1,6 +1,6 @@
 # Make Panasonic Great Again
 
-Download the **full-size JPEG already embedded in a RAW photo**, from a button beside Immich's Download button. Designed for Panasonic `.RW2` files.
+Download the **full-size JPEG already embedded in a RAW photo**, from a JPG icon beside Immich's Download button, and **Download JPEG** in the three-dot menu. Designed for Panasonic `.RW2` files.
 
 **No RAW development, conversion, resizing or JPEG re-encoding.** The response is the camera's original embedded JPEG bytes, including any metadata it contains.
 
@@ -14,7 +14,7 @@ exiftool -b -JpgFromRaw2 original.RW2
 
 If that tag is absent, it tries `JpgFromRaw`. If neither contains a JPEG, the download reports an error. It never falls back to a thumbnail, `PreviewImage`, or RAW conversion. The embedded image's dimensions are determined by the camera; this add-on does not upscale it or promise that every RAW contains a full-resolution JPEG.
 
-The `JPEG ↓` button appears only for RAW images, never JPEG, PNG, HEIC, TIFF or video. Other common RAW extensions are recognized, but extraction succeeds only when one of the supported tags exists. Original files and the Immich library are never modified.
+Both JPEG download actions appear only for RAW images, never JPEG, PNG, HEIC, TIFF or video. Other common RAW extensions are recognized, but extraction succeeds only when one of the supported tags exists. Original files and the Immich library are never modified.
 
 ## Docker setup
 
@@ -60,7 +60,7 @@ Use [deploy/Caddyfile.example](deploy/Caddyfile.example) as the routing pattern 
 
 Preserve your existing TLS configuration. Validate the proposed proxy configuration before reloading. If the proxy runs in Docker, connect it to the Immich network and use `http://raw-jpeg:8099` instead of host loopback. Restart the companion after changing its environment.
 
-Reload Immich and open a RAW photo. No browser extension is required with this setup. This is an independent web add-on; native mobile apps are outside its scope.
+Reload Immich and open a RAW photo. Use the JPG icon beside Download or **More (⋮) → Download JPEG**. No browser extension is required with this setup. Mobile browsers use this same interface; the native Immich iOS and Android apps do not load the integration. This is an independent web add-on.
 
 ## Existing Immichinko gateway
 

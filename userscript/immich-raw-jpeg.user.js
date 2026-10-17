@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Make Panasonic Great Again — Immich RAW JPEG
 // @namespace    https://github.com/wispdevon/MakePanasonicGreatAgain
-// @version      0.2.0
+// @version      0.3.0
 // @description  Download an embedded full-resolution JPEG beside Immich's download button, for RAW photos only.
 // @match        https://im.devonlabs.space/*
 // @grant        none
@@ -19,6 +19,8 @@
   const assetPattern = new RegExp(`/photos/(${uuid})/?$`, 'i');
   // Download arrow SVG path used by Immich. This also works with translated labels.
   const downloadPath = 'M5,20H19V18H5M19,9H15V3H9V9H5L12,16L19,9Z';
+  // Material Design Icons mdiFileJpgBox (Apache-2.0); see THIRD_PARTY_NOTICES.md.
+  const jpegPath = 'M19 3H5C3.9 3 3 3.9 3 5V19C3 20.1 3.9 21 5 21H19C20.1 21 21 20.1 21 19V5C21 3.9 20.1 3 19 3M9 13.5C9 14.6 8.1 15 7 15S5 14.6 5 13.5V12H6.5V13.5H7.5V9H9V13.5M14 11.5C14 12.3 13.3 13 12.5 13H11.5V15H10V9H12.5C13.3 9 14 9.7 14 10.5V11.5M19 10.5H16.5V13.5H17.5V12H19V13.7C19 14.4 18.5 15 17.7 15H16.4C15.6 15 15.1 14.3 15.1 13.7V10.4C15 9.7 15.5 9 16.3 9H17.6C18.4 9 18.9 9.7 18.9 10.3V10.5M11.5 10.5H12.5V11.5H11.5V10.5Z';
   let currentId;
   let currentAsset;
   let generation = 0;
@@ -34,6 +36,7 @@
 
   function removeButton() {
     document.getElementById('immich-raw-jpeg')?.remove();
+    document.getElementById('immich-raw-jpeg-menu')?.remove();
   }
 
   function findDownload() {
@@ -60,12 +63,79 @@
     setTimeout(() => status.remove(), 12000);
   }
 
-  async function download(asset, id, button) {
+  function jpegIcon(size) {
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('viewBox', '0 0 24 24');
+    svg.setAttribute('width', size);
+    svg.setAttribute('height', size);
+    svg.setAttribute('aria-hidden', 'true');
+    svg.setAttribute('focusable', 'false');
+    svg.style.flexShrink = '0';
+    const path = document.createElementNS(svg.namespaceURI, 'path');
+    path.setAttribute('d', jpegPath);
+    path.setAttribute('fill', 'currentColor');
+    svg.append(path);
+    return svg;
+  }
+
+  function refreshBusy() {
+    for (const action of document.querySelectorAll('[data-raw-jpeg-action]')) {
+      if (action.tagName === 'BUTTON') action.disabled = busy;
+      action.setAttribute('aria-disabled', String(busy));
+      action.setAttribute('aria-busy', String(busy));
+      action.title = busy ? 'Extracting embedded JPEG…' : 'Download embedded full-resolution JPEG';
+      action.style.opacity = busy ? '0.5' : '';
+    }
+  }
+
+  function addActions(asset, id) {
+    const original = findDownload();
+    if (original && !document.getElementById('immich-raw-jpeg')) {
+      const button = document.createElement('button');
+      button.id = 'immich-raw-jpeg';
+      button.type = 'button';
+      button.className = original.className;
+      button.setAttribute('data-raw-jpeg-action', 'toolbar');
+      button.setAttribute('aria-label', 'Download embedded full-resolution JPEG');
+      button.append(jpegIcon('24'));
+      button.addEventListener('click', () => void download(asset, id));
+      original.after(button);
+    }
+
+    const toolbar = document.querySelector('[data-testid="asset-viewer-navbar-actions"]');
+    const more = toolbar?.querySelector('button[aria-haspopup][aria-controls]');
+    const menu = more && document.getElementById(more.getAttribute('aria-controls'));
+    if (menu?.getAttribute('role') === 'menu' && !menu.querySelector('#immich-raw-jpeg-menu')) {
+      const items = Array.from(menu.querySelectorAll('[role="menuitem"]'));
+      const nativeDownload = items.find(item => item.querySelector(`path[d="${downloadPath}"]`) || /^download$/i.test(item.textContent.trim()));
+      const template = nativeDownload || items[0];
+      if (!template) return;
+      const item = document.createElement('li');
+      item.id = 'immich-raw-jpeg-menu';
+      item.className = template.className;
+      item.setAttribute('role', 'menuitem');
+      item.setAttribute('data-raw-jpeg-action', 'menu');
+      item.tabIndex = -1;
+      const label = document.createElement('span');
+      label.textContent = 'Download JPEG';
+      item.append(jpegIcon('18'), label);
+      item.addEventListener('click', () => {
+        if (busy || id !== assetId()) return;
+        if (more.getAttribute('aria-expanded') === 'true') more.click();
+        void download(asset, id);
+      });
+      // Immich navigates direct menu children by id and activates them with click().
+      // A native menuitem preserves its Arrow/Enter/Space/Escape handling.
+      if (nativeDownload) nativeDownload.after(item);
+      else template.before(item);
+    }
+    refreshBusy();
+  }
+
+  async function download(asset, id) {
     if (busy || id !== assetId()) return;
     busy = true;
-    button.disabled = true;
-    button.textContent = 'Extracting…';
-    button.setAttribute('aria-busy', 'true');
+    refreshBusy();
     try {
       const response = await fetch(`/raw-jpeg/assets/${id}`, {
         method: 'POST', credentials: 'same-origin', signal: AbortSignal.timeout(300000),
@@ -89,9 +159,7 @@
       showError(error.message || 'JPEG extraction failed. Please try again.');
     } finally {
       busy = false;
-      button.disabled = false;
-      button.textContent = 'JPEG ↓';
-      button.removeAttribute('aria-busy');
+      refreshBusy();
       schedule();
     }
   }
@@ -126,23 +194,7 @@
       removeButton();
       return;
     }
-    const original = findDownload();
-    if (!original || document.getElementById('immich-raw-jpeg')) return;
-    const button = document.createElement('button');
-    button.id = 'immich-raw-jpeg';
-    button.type = 'button';
-    button.className = original.className;
-    button.textContent = 'JPEG ↓';
-    button.title = 'Download embedded full-resolution JPEG';
-    button.setAttribute('aria-label', 'Download embedded full-resolution JPEG');
-    button.style.paddingInline = '10px';
-    button.style.width = 'auto';
-    button.style.minWidth = '64px';
-    button.style.whiteSpace = 'nowrap';
-    button.disabled = busy;
-    const asset = currentAsset;
-    button.addEventListener('click', () => void download(asset, id, button));
-    original.after(button);
+    addActions(currentAsset, id);
   }
 
   let scheduled = false;
@@ -151,6 +203,9 @@
     scheduled = true;
     queueMicrotask(() => { scheduled = false; void sync(); });
   }
+  const style = document.createElement('style');
+  style.textContent = '#immich-raw-jpeg-menu:hover, [aria-activedescendant="immich-raw-jpeg-menu"] > #immich-raw-jpeg-menu { background-color: rgb(203 213 225); }';
+  document.head.append(style);
   const observer = new MutationObserver(schedule);
   observer.observe(document.body, { childList: true, subtree: true });
   window.addEventListener('popstate', schedule);
